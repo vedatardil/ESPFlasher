@@ -2,4 +2,6 @@ node_modules
 out
 *.vsix
 .vscode-test/
+# IDE klasörleri
 .vscode/
+.idea/
