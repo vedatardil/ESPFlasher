@@ -187,7 +187,17 @@ export class EspFlasherPanel {
         }
     }
 
+    private _getNonce(): string {
+        let text = '';
+        const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        for (let i = 0; i < 32; i++) {
+            text += possible.charAt(Math.floor(Math.random() * possible.length));
+        }
+        return text;
+    }
+
     private _getHtmlForWebview(webview: vscode.Webview, defaultChip: string, defaultBaud: number, ports: string[] | null = null): string {
+        const nonce = this._getNonce();
         let portOpts: string;
         let portHelpHtml = '';
         if (ports === null) {
@@ -217,6 +227,7 @@ export class EspFlasherPanel {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src ${webview.cspSource} https:;">
     <title>ESP Flasher</title>
     <style>
         * { box-sizing: border-box; }
@@ -445,18 +456,10 @@ export class EspFlasherPanel {
         <label>Firmware Dosyaları (Adres | Dosya Yolu)</label>
         <div class="mode-selector" id="modeSelector">
             <label class="mode-option">
-                <input type="radio" name="firmwareMode" value="offline" checked onchange="
-                    var s = document.getElementById('firmwareSection');
-                    s.classList.remove('mode-offline', 'mode-online');
-                    s.classList.add('mode-offline');
-                "> Offline (Gözat ile seç)
+                <input type="radio" name="firmwareMode" value="offline" checked> Offline (Gözat ile seç)
             </label>
             <label class="mode-option">
-                <input type="radio" name="firmwareMode" value="online" onchange="
-                    var s = document.getElementById('firmwareSection');
-                    s.classList.remove('mode-offline', 'mode-online');
-                    s.classList.add('mode-online');
-                "> Online (İnternetten indir)
+                <input type="radio" name="firmwareMode" value="online"> Online (İnternetten indir)
             </label>
         </div>
         <div class="firmware-list" id="firmwareList">
@@ -491,13 +494,14 @@ export class EspFlasherPanel {
     </div>
 
     <div class="footer">
-        ©Tüm hakları saklıdır. <a href="https://www.vedatardil.com.tr" target="_blank">Vedat Ardil</a> | ESP Flasher v1.3.1
+        ©Tüm hakları saklıdır. <a href="https://www.vedatardil.com.tr" target="_blank">Vedat Ardil</a> | ESP Flasher v1.4.0
     </div>
 
-    <script>
+    <script nonce="${nonce}">
+        try {
         var vscode = acquireVsCodeApi();
         
-        const chipType = document.getElementById('chipType');
+        var chipType = document.getElementById('chipType');
         chipType.value = '${defaultChip}';
         document.getElementById('baudRate').value = '${defaultBaud}';
         
@@ -649,33 +653,10 @@ export class EspFlasherPanel {
         }
         
         document.querySelectorAll('.firmware-item').forEach(function(item) {
-            var rb = item.querySelector('.remove-btn');
-            if (rb) rb.addEventListener('click', function() { item.remove(); });
-            var fb = item.querySelector('.file-browse');
-            if (fb) fb.addEventListener('click', function() { browseFile(item); });
-            var db = item.querySelector('.download-btn');
-            if (db) db.addEventListener('click', function() { doDownload(item); });
-        });
-        
-        document.getElementById('firmwareList').addEventListener('click', function(e) {
-            var btn = e.target.closest('.download-btn');
-            if (btn) {
-                var item = btn.closest('.firmware-item');
-                if (item) doDownload(item);
-                return;
-            }
-            var browseBtn = e.target.closest('.file-browse');
-            if (browseBtn) {
-                var fItem = browseBtn.closest('.firmware-item');
-                if (fItem) browseFile(fItem);
-                return;
-            }
-            var removeBtn = e.target.closest('.remove-btn');
-            if (removeBtn) {
-                var rItem = removeBtn.closest('.firmware-item');
-                if (rItem) rItem.remove();
-                return;
-            }
+            item.querySelector('.remove-btn').onclick = function() { item.remove(); };
+            item.querySelector('.file-browse').onclick = function() { browseFile(item); };
+            var dlb = item.querySelector('.download-btn');
+            if (dlb) dlb.onclick = function() { doDownload(item); };
         });
         toggleMode();
         
@@ -722,6 +703,9 @@ export class EspFlasherPanel {
                 }
             });
         };
+        } catch(scriptErr) {
+            document.body.innerHTML = '<h2 style="color:red;">Script Hatası: ' + scriptErr.message + '</h2><pre>' + scriptErr.stack + '</pre>';
+        }
     </script>
 </body>
 </html>`;

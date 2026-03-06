@@ -2,7 +2,7 @@
   "name": "esp-flasher",
   "displayName": "ESP Flasher",
   "description": "ESP32 ve ESP8266 serisi cihazlara firmware yükleme eklentisi. Geliştirici: Vedat Ardil - www.vedatardil.com.tr",
-  "version": "1.3.1",
+  "version": "1.4.0",
   "publisher": "vedatardil",
   "engines": {
     "vscode": "^1.85.0"
