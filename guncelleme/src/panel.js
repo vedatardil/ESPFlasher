@@ -1,183 +1,170 @@
+"use strict";
 /**
  * ESP Flasher Panel - Webview UI
  * Geliştirici: Vedat Ardil - www.vedatardil.com.tr
  */
-
-import * as vscode from 'vscode';
-import { Flasher } from './flasher';
-import { downloadAndExtract } from './downloader';
-
-export class EspFlasherPanel {
-    public static currentPanel: EspFlasherPanel | undefined;
-    private readonly _panel: vscode.WebviewPanel;
-    private readonly _extensionUri: vscode.Uri;
-    private _disposables: vscode.Disposable[] = [];
-    private _flasher: Flasher;
-
-    public static createOrShow(extensionUri: vscode.Uri): EspFlasherPanel {
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.EspFlasherPanel = void 0;
+const vscode = __importStar(require("vscode"));
+const flasher_1 = require("./flasher");
+const downloader_1 = require("./downloader");
+class EspFlasherPanel {
+    static createOrShow(extensionUri) {
         const column = vscode.window.activeTextEditor
             ? vscode.window.activeTextEditor.viewColumn
             : undefined;
-
         if (EspFlasherPanel.currentPanel) {
             EspFlasherPanel.currentPanel._panel.reveal(column);
             return EspFlasherPanel.currentPanel;
         }
-
-        const panel = vscode.window.createWebviewPanel(
-            'espFlasher',
-            'ESP Flasher - Firmware Yükle',
-            column || vscode.ViewColumn.One,
-            {
-                enableScripts: true,
-                localResourceRoots: [extensionUri],
-                retainContextWhenHidden: true
-            }
-        );
-
+        const panel = vscode.window.createWebviewPanel('espFlasher', 'ESP Flasher - Firmware Yükle', column || vscode.ViewColumn.One, {
+            enableScripts: true,
+            localResourceRoots: [extensionUri],
+            retainContextWhenHidden: true
+        });
         EspFlasherPanel.currentPanel = new EspFlasherPanel(panel, extensionUri);
         return EspFlasherPanel.currentPanel;
     }
-
-    public constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
+    constructor(panel, extensionUri) {
+        this._disposables = [];
         this._panel = panel;
         this._extensionUri = extensionUri;
-        this._flasher = new Flasher();
-
+        this._flasher = new flasher_1.Flasher();
         this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
         const config = vscode.workspace.getConfiguration('espFlasher');
-        const defaultChip = config.get<string>('defaultChip', 'esp32');
-        const defaultBaud = config.get<number>('defaultBaudRate', 460800);
-
-        const updateHtml = (ports: string[] | null) => {
+        const defaultChip = config.get('defaultChip', 'esp32');
+        const defaultBaud = config.get('defaultBaudRate', 460800);
+        const updateHtml = (ports) => {
             this._panel.webview.html = this._getHtmlForWebview(this._panel.webview, defaultChip, defaultBaud, ports);
         };
         updateHtml(null);
         this._flasher.getSerialPorts().then(ports => updateHtml(ports || [])).catch(() => updateHtml([]));
-
-        this._panel.webview.onDidReceiveMessage(
-            async (message) => {
-                switch (message.command) {
-                    case 'getSerialPorts':
-                        try {
-                            const ports = await this._flasher.getSerialPorts();
-                            this._panel.webview.postMessage({
-                                command: 'updatePorts',
-                                ports: ports || []
-                            });
-                        } catch (_) {
-                            this._panel.webview.postMessage({
-                                command: 'updatePorts',
-                                ports: []
-                            });
-                        }
-                        break;
-                    case 'flash':
-                        await this._handleFlash(message.config);
-                        break;
-                    case 'browseFile':
-                        const uris = await vscode.window.showOpenDialog({
-                            canSelectMany: false,
-                            openLabel: 'Firmware Seç',
-                            filters: { 'Binary': ['bin'], 'Tüm Dosyalar': ['*'] }
+        this._panel.webview.onDidReceiveMessage(async (message) => {
+            switch (message.command) {
+                case 'getSerialPorts':
+                    try {
+                        const ports = await this._flasher.getSerialPorts();
+                        const cfg = vscode.workspace.getConfiguration('espFlasher');
+                        this._panel.webview.html = this._getHtmlForWebview(this._panel.webview, cfg.get('defaultChip', 'esp32'), cfg.get('defaultBaudRate', 460800), ports || []);
+                    }
+                    catch (_) {
+                        const cfg = vscode.workspace.getConfiguration('espFlasher');
+                        this._panel.webview.html = this._getHtmlForWebview(this._panel.webview, cfg.get('defaultChip', 'esp32'), cfg.get('defaultBaudRate', 460800), []);
+                    }
+                    break;
+                case 'flash':
+                    await this._handleFlash(message.config);
+                    break;
+                case 'browseFile':
+                    const uris = await vscode.window.showOpenDialog({
+                        canSelectMany: false,
+                        openLabel: 'Firmware Seç',
+                        filters: { 'Binary': ['bin'], 'Tüm Dosyalar': ['*'] }
+                    });
+                    if (uris && uris.length > 0) {
+                        this._panel.webview.postMessage({
+                            command: 'fileSelected',
+                            itemIndex: message.itemIndex,
+                            path: uris[0].fsPath
                         });
-                        if (uris && uris.length > 0) {
+                    }
+                    break;
+                case 'downloadFirmware':
+                    try {
+                        const result = await (0, downloader_1.downloadAndExtract)(message.url, (msg) => {
+                            this._panel.webview.postMessage({ command: 'downloadProgress', message: msg });
+                        });
+                        this._panel.webview.postMessage({
+                            command: 'downloadComplete',
+                            success: true,
+                            files: result.files,
+                            itemIndex: message.itemIndex
+                        });
+                        if (result.files.length > 0) {
+                            vscode.window.showInformationMessage('Firmware indirildi: ' + result.files[0].path);
+                        }
+                    }
+                    catch (err) {
+                        const errMsg = err instanceof Error ? err.message : String(err);
+                        this._panel.webview.postMessage({
+                            command: 'downloadComplete',
+                            success: false,
+                            error: errMsg,
+                            itemIndex: message.itemIndex
+                        });
+                        vscode.window.showErrorMessage('ESP Flasher indirme hatası: ' + errMsg);
+                    }
+                    break;
+                case 'pickFromList':
+                    const pickItems = message.names.map((n) => ({ label: n }));
+                    const picked = await vscode.window.showQuickPick(pickItems, {
+                        placeHolder: 'Firmware dosyası seçin'
+                    });
+                    if (picked) {
+                        const idx = message.names.indexOf(picked.label);
+                        if (idx >= 0) {
                             this._panel.webview.postMessage({
-                                command: 'fileSelected',
+                                command: 'pickedFile',
                                 itemIndex: message.itemIndex,
-                                path: uris[0].fsPath
+                                path: message.paths[idx]
                             });
                         }
-                        break;
-                    case 'downloadFirmware':
-                        {
-                            const dlUrl = message.url;
-                            const dlIdx = message.itemIndex;
-                            vscode.window.showInformationMessage('ESP Flasher: İndirme başlatılıyor... URL: ' + (dlUrl || 'BOŞ'));
-                            const ch = vscode.window.createOutputChannel('ESP Flasher Download');
-                            ch.show(true);
-                            ch.clear();
-                            ch.appendLine('=== ESP Flasher İndirme ===');
-                            ch.appendLine('URL: ' + dlUrl);
-                            ch.appendLine('itemIndex: ' + dlIdx);
-                            ch.appendLine('Zaman: ' + new Date().toLocaleString());
-                            ch.appendLine('---');
-                            const sendProgress = (msg: string) => {
-                                ch.appendLine('[İlerleme] ' + msg);
-                                this._panel.webview.postMessage({ command: 'downloadProgress', message: msg });
-                            };
-                            try {
-                                sendProgress('Başlatılıyor...');
-                                const result = await downloadAndExtract(dlUrl, sendProgress);
-                                ch.appendLine('[ESP Flasher] İndirme tamamlandı! Dosya sayısı: ' + result.files.length);
-                                if (result.files.length > 0) {
-                                    ch.appendLine('[ESP Flasher] Dosya: ' + result.files[0].path);
-                                }
-                                this._panel.webview.postMessage({
-                                    command: 'downloadComplete',
-                                    success: true,
-                                    files: result.files,
-                                    itemIndex: dlIdx
-                                });
-                                if (result.files.length > 0) {
-                                    vscode.window.showInformationMessage('Firmware indirildi: ' + result.files[0].path);
-                                }
-                            } catch (err) {
-                                const errMsg = err instanceof Error ? err.message : String(err);
-                                ch.appendLine('[ESP Flasher] HATA: ' + errMsg);
-                                this._panel.webview.postMessage({
-                                    command: 'downloadComplete',
-                                    success: false,
-                                    error: errMsg,
-                                    itemIndex: dlIdx
-                                });
-                                vscode.window.showErrorMessage('ESP Flasher indirme hatası: ' + errMsg);
-                            }
-                        }
-                        break;
-                    case 'pickFromList':
-                        const pickItems: vscode.QuickPickItem[] = message.names.map((n: string) => ({ label: n }));
-                        const picked = await vscode.window.showQuickPick(pickItems, {
-                            placeHolder: 'Firmware dosyası seçin'
-                        });
-                        if (picked) {
-                            const idx = message.names.indexOf((picked as vscode.QuickPickItem).label);
-                            if (idx >= 0) {
-                                this._panel.webview.postMessage({
-                                    command: 'pickedFile',
-                                    itemIndex: message.itemIndex,
-                                    path: message.paths[idx]
-                                });
-                            }
-                        }
-                        break;
-                }
-            },
-            null,
-            this._disposables
-        );
+                    }
+                    break;
+            }
+        }, null, this._disposables);
     }
-
-    public reveal() {
+    reveal() {
         this._panel.reveal();
     }
-
-    public onDidDispose(callback: () => void) {
+    onDidDispose(callback) {
         this._panel.onDidDispose(callback);
     }
-
-    private async _handleFlash(config: FlashConfig) {
+    async _handleFlash(config) {
         const outputChannel = vscode.window.createOutputChannel('ESP Flasher');
         outputChannel.show();
         outputChannel.clear();
-
         try {
             await this._flasher.flash(config, (data) => {
                 outputChannel.append(data);
             });
             this._panel.webview.postMessage({ command: 'flashComplete', success: true });
             vscode.window.showInformationMessage('ESP Flasher: Firmware başarıyla yüklendi!');
-        } catch (error) {
+        }
+        catch (error) {
             let errMsg = error instanceof Error ? error.message : String(error);
             if (errMsg.includes('Resource busy') || errMsg.includes('Errno 16') || errMsg.includes('could not open port')) {
                 errMsg = 'Seri port meşgul! Serial Monitor, Arduino IDE, PlatformIO veya port kullanan diğer uygulamaları kapatıp tekrar deneyin.';
@@ -186,13 +173,13 @@ export class EspFlasherPanel {
             vscode.window.showErrorMessage(`ESP Flasher: ${errMsg}`);
         }
     }
-
-    private _getHtmlForWebview(webview: vscode.Webview, defaultChip: string, defaultBaud: number, ports: string[] | null = null): string {
-        let portOpts: string;
+    _getHtmlForWebview(webview, defaultChip, defaultBaud, ports = null) {
+        let portOpts;
         let portHelpHtml = '';
         if (ports === null) {
             portOpts = '<option value="">Yükleniyor...</option>';
-        } else if (ports.length === 0) {
+        }
+        else if (ports.length === 0) {
             portOpts = '<option value="">Port bulunamadı - aşağıya manuel yazın veya Portları Yenile</option>';
             portHelpHtml = `<div style="background:var(--vscode-inputValidation-infoBackground,#1e3a5f);border:1px solid var(--vscode-inputValidation-infoBorder,#007acc);padding:10px 12px;border-radius:4px;font-size:12px;margin-top:8px;">
                 <strong>Port bulunamadı - olası nedenler:</strong><br>
@@ -209,8 +196,9 @@ export class EspFlasherPanel {
                 <li>Terminal'de <code style="background:var(--vscode-textCodeBlock-background);padding:1px 4px;border-radius:2px;">ls /dev/cu.*</code> komutuyla portları kontrol edin</li>
                 </ul>
             </div>`;
-        } else {
-            portOpts = '<option value="">Port seçin...</option>' + ports.map(p => '<option value="' + String(p).replace(/&/g,'&amp;').replace(/"/g,'&quot;') + '">' + p + '</option>').join('');
+        }
+        else {
+            portOpts = '<option value="">Port seçin...</option>' + ports.map(p => '<option value="' + String(p).replace(/&/g, '&amp;').replace(/"/g, '&quot;') + '">' + p + '</option>').join('');
         }
         return `<!DOCTYPE html>
 <html lang="tr">
@@ -334,17 +322,11 @@ export class EspFlasherPanel {
         .mode-online .file-browse { display: none !important; }
         .mode-online .online-actions { display: flex !important; flex-wrap: wrap; gap: 8px; }
         .download-status {
-            font-size: 12px;
-            color: var(--vscode-charts-blue, #3794ff);
-            font-weight: 500;
-            min-width: 180px;
-            white-space: nowrap;
-        }
-        .download-status.done {
-            color: var(--vscode-charts-green, #89d185);
-        }
-        .download-status.error {
-            color: var(--vscode-errorForeground, #f48771);
+            font-size: 11px;
+            color: var(--vscode-descriptionForeground);
+            max-width: 120px;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .online-hint {
             font-size: 11px;
@@ -472,7 +454,14 @@ export class EspFlasherPanel {
                             <option value="https://micropython.org/resources/firmware/ESP8266_GENERIC-20251209-v1.27.0.bin" data-addr="0x0" data-chip="esp8266">MicroPython ESP8266 (micropython.org)</option>
                         </select>
                         <input type="text" class="custom-url" placeholder="veya URL yapıştır (.bin veya .zip)">
-                        <button class="btn btn-secondary download-btn">İndir</button>
+                        <button class="btn btn-secondary download-btn" onclick="
+                            const item = this.closest('.firmware-item');
+                            const url = item.querySelector('.predefined-source').value || item.querySelector('.custom-url').value.trim();
+                            if (!url) { alert('Ön tanımlı kaynak seçin veya URL girin.'); return; }
+                            item.classList.add('downloading');
+                            item.querySelector('.download-status').textContent = 'İndiriliyor...';
+                            vscode.postMessage({ command: 'downloadFirmware', url: url, itemIndex: item.dataset.index });
+                        ">İndir</button>
                         <div class="online-hint">Seçili kaynaktan veya URL'den indirir. Önce seçin, sonra İndir'e tıklayın.</div>
                     </div>
                 </div>
@@ -491,11 +480,11 @@ export class EspFlasherPanel {
     </div>
 
     <div class="footer">
-        ©Tüm hakları saklıdır. <a href="https://www.vedatardil.com.tr" target="_blank">Vedat Ardil</a> | ESP Flasher v1.3.1
+        ©Tüm hakları saklıdır. <a href="https://www.vedatardil.com.tr" target="_blank">Vedat Ardil</a> | ESP Flasher v1.2.8
     </div>
 
     <script>
-        var vscode = acquireVsCodeApi();
+        const vscode = acquireVsCodeApi();
         
         const chipType = document.getElementById('chipType');
         chipType.value = '${defaultChip}';
@@ -509,71 +498,39 @@ export class EspFlasherPanel {
         window.addEventListener('message', event => {
             const msg = event.data;
             if (!msg || !msg.command) return;
-            console.log('[ESP Flasher WV] Mesaj alındı:', msg.command, msg);
-            if (msg.command === 'updatePorts') {
-                var sel = document.getElementById('serialPort');
-                if (sel && msg.ports) {
-                    var oldVal = sel.value;
-                    if (msg.ports.length === 0) {
-                        sel.innerHTML = '<option value="">Port bulunamadı - aşağıya manuel yazın veya Portları Yenile</option>';
-                    } else {
-                        sel.innerHTML = '<option value="">Port seçin...</option>' + msg.ports.map(function(p) {
-                            return '<option value="' + p.replace(/&/g,'&amp;').replace(/"/g,'&quot;') + '">' + p + '</option>';
-                        }).join('');
-                        if (oldVal) sel.value = oldVal;
-                    }
-                }
-            } else if (msg.command === 'flashComplete') {
+            if (msg.command === 'flashComplete') {
                 document.getElementById('flashBtn').disabled = false;
                 document.getElementById('flashBtn').textContent = 'Firmware Yükle';
             } else if (msg.command === 'fileSelected') {
-                var fItem = document.querySelector('.firmware-item[data-index="' + msg.itemIndex + '"]');
-                if (fItem) fItem.querySelector('.file-path').value = msg.path;
+                const item = document.querySelector('.firmware-item[data-index="' + msg.itemIndex + '"]');
+                if (item) item.querySelector('.file-path').value = msg.path;
             } else if (msg.command === 'downloadProgress') {
-                console.log('[ESP Flasher WV] İlerleme:', msg.message);
-                var allItems = document.querySelectorAll('.firmware-item');
-                allItems.forEach(function(item) {
-                    if (item.classList.contains('downloading')) {
-                        var statusEl = item.querySelector('.download-status');
-                        if (statusEl) {
-                            statusEl.textContent = msg.message;
-                            statusEl.className = 'download-status';
-                        }
-                    }
-                });
+                const status = document.querySelector('.firmware-item.downloading .download-status');
+                if (status) status.textContent = msg.message;
             } else if (msg.command === 'downloadComplete') {
-                console.log('[ESP Flasher WV] İndirme tamamlandı:', msg);
-                var dItem = document.querySelector('.firmware-item[data-index="' + msg.itemIndex + '"]');
-                if (!dItem) {
-                    dItem = document.querySelector('.firmware-item.downloading');
-                }
-                if (!dItem) {
-                    dItem = document.querySelector('.firmware-item[data-index="0"]');
-                }
-                if (dItem) {
-                    dItem.classList.remove('downloading');
-                    var statusEl = dItem.querySelector('.download-status');
+                const item = document.querySelector('.firmware-item[data-index="' + msg.itemIndex + '"]');
+                if (item) {
+                    item.classList.remove('downloading');
+                    const statusEl = item.querySelector('.download-status');
                     if (msg.success) {
                         if (msg.files.length === 1) {
-                            dItem.querySelector('.file-path').value = msg.files[0].path;
-                            var opt = dItem.querySelector('.predefined-source option:checked');
-                            if (opt && opt.dataset && opt.dataset.addr) dItem.querySelector('.addr-input').value = opt.dataset.addr;
+                            item.querySelector('.file-path').value = msg.files[0].path;
+                            const opt = item.querySelector('.predefined-source option:checked');
+                            if (opt && opt.dataset.addr) item.querySelector('.addr-input').value = opt.dataset.addr;
                         } else if (msg.files.length > 1) {
-                            var paths = msg.files.map(function(f) { return f.path; });
-                            var names = msg.files.map(function(f) { return f.name; });
-                            vscode.postMessage({ command: 'pickFromList', itemIndex: dItem.dataset.index, paths: paths, names: names });
+                            const paths = msg.files.map(f => f.path);
+                            const names = msg.files.map(f => f.name);
+                            vscode.postMessage({ command: 'pickFromList', itemIndex: msg.itemIndex, paths, names });
                         }
-                        if (statusEl) { statusEl.textContent = 'İndirildi ✓'; statusEl.className = 'download-status done'; }
-                        var dlBtn = dItem.querySelector('.download-btn');
-                        if (dlBtn) { dlBtn.textContent = 'Yeniden İndir'; }
+                        if (statusEl) statusEl.textContent = 'İndirildi';
                     } else {
-                        if (statusEl) { statusEl.textContent = 'Hata: ' + (msg.error || ''); statusEl.className = 'download-status error'; }
+                        if (statusEl) statusEl.textContent = 'Hata: ' + (msg.error || '');
                         alert('İndirme hatası: ' + (msg.error || ''));
                     }
                 }
             } else if (msg.command === 'pickedFile') {
-                var pickedItem = document.querySelector('.firmware-item[data-index="' + msg.itemIndex + '"]');
-                if (pickedItem) pickedItem.querySelector('.file-path').value = msg.path;
+                const item = document.querySelector('.firmware-item[data-index="' + msg.itemIndex + '"]');
+                if (item) item.querySelector('.file-path').value = msg.path;
             }
         });
         
@@ -613,7 +570,14 @@ export class EspFlasherPanel {
                 '<option value="https://micropython.org/resources/firmware/ESP8266_GENERIC-20251209-v1.27.0.bin" data-addr="0x0" data-chip="esp8266">MicroPython ESP8266 (micropython.org)</option>' +
                 '</select>' +
                 '<input type="text" class="custom-url" placeholder="URL (.bin veya .zip)">' +
-                '<button class="btn btn-secondary download-btn">İndir</button>' +
+                '<button class="btn btn-secondary download-btn" onclick="' +
+                    'var item = this.closest(\'.firmware-item\'); ' +
+                    'var url = item.querySelector(\'.predefined-source\').value || item.querySelector(\'.custom-url\').value.trim(); ' +
+                    'if (!url) { alert(\'Ön tanımlı kaynak seçin veya URL girin.\'); return; } ' +
+                    'item.classList.add(\'downloading\'); ' +
+                    'item.querySelector(\'.download-status\').textContent = \'İndiriliyor...\'; ' +
+                    'vscode.postMessage({ command: \'downloadFirmware\', url: url, itemIndex: item.dataset.index });' +
+                '">İndir</button>' +
                 '<div class="online-hint">Seçili kaynaktan veya URL\'den indirir.</div>' +
                 '</div></div>' +
                 '<span class="download-status"></span>' +
@@ -630,52 +594,23 @@ export class EspFlasherPanel {
         }
         
         function doDownload(item) {
-            try {
-                var predefined = item.querySelector('.predefined-source').value;
-                var custom = item.querySelector('.custom-url').value.trim();
-                var url = predefined || custom;
-                if (!url) {
-                    alert('Ön tanımlı kaynak seçin veya URL girin.');
-                    return;
-                }
-                var idx = item.dataset.index || '0';
-                item.classList.add('downloading');
-                var statusEl = item.querySelector('.download-status');
-                if (statusEl) statusEl.textContent = 'Bağlanıyor...';
-                vscode.postMessage({ command: 'downloadFirmware', url: url, itemIndex: idx });
-            } catch(e) {
-                alert('İndirme hatası: ' + (e.message || e));
+            const predefined = item.querySelector('.predefined-source').value;
+            const custom = item.querySelector('.custom-url').value.trim();
+            const url = predefined || custom;
+            if (!url) {
+                alert('Ön tanımlı kaynak seçin veya URL girin.');
+                return;
             }
+            item.classList.add('downloading');
+            item.querySelector('.download-status').textContent = 'İndiriliyor...';
+            vscode.postMessage({ command: 'downloadFirmware', url, itemIndex: item.dataset.index });
         }
         
-        document.querySelectorAll('.firmware-item').forEach(function(item) {
-            var rb = item.querySelector('.remove-btn');
-            if (rb) rb.addEventListener('click', function() { item.remove(); });
-            var fb = item.querySelector('.file-browse');
-            if (fb) fb.addEventListener('click', function() { browseFile(item); });
-            var db = item.querySelector('.download-btn');
-            if (db) db.addEventListener('click', function() { doDownload(item); });
-        });
-        
-        document.getElementById('firmwareList').addEventListener('click', function(e) {
-            var btn = e.target.closest('.download-btn');
-            if (btn) {
-                var item = btn.closest('.firmware-item');
-                if (item) doDownload(item);
-                return;
-            }
-            var browseBtn = e.target.closest('.file-browse');
-            if (browseBtn) {
-                var fItem = browseBtn.closest('.firmware-item');
-                if (fItem) browseFile(fItem);
-                return;
-            }
-            var removeBtn = e.target.closest('.remove-btn');
-            if (removeBtn) {
-                var rItem = removeBtn.closest('.firmware-item');
-                if (rItem) rItem.remove();
-                return;
-            }
+        document.querySelectorAll('.firmware-item').forEach(item => {
+            item.querySelector('.remove-btn').onclick = () => item.remove();
+            item.querySelector('.file-browse').onclick = () => browseFile(item);
+            const btn = item.querySelector('.download-btn');
+            if (btn) btn.onclick = () => doDownload(item);
         });
         toggleMode();
         
@@ -726,23 +661,15 @@ export class EspFlasherPanel {
 </body>
 </html>`;
     }
-
-    public dispose() {
+    dispose() {
         EspFlasherPanel.currentPanel = undefined;
         this._panel.dispose();
         while (this._disposables.length) {
             const x = this._disposables.pop();
-            if (x) x.dispose();
+            if (x)
+                x.dispose();
         }
     }
 }
-
-export interface FlashConfig {
-    port: string;
-    chip: string;
-    baudRate: number;
-    flashMode: string;
-    flashSize: string;
-    flashFreq: string;
-    files: { address: string; path: string }[];
-}
+exports.EspFlasherPanel = EspFlasherPanel;
+//# sourceMappingURL=panel.js.map
