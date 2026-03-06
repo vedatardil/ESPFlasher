@@ -1,0 +1,73 @@
+{
+  "name": "esp-flasher",
+  "displayName": "ESP Flasher",
+  "description": "ESP32 ve ESP8266 serisi cihazlara firmware yükleme eklentisi. Geliştirici: Vedat Ardil - www.vedatardil.com.tr",
+  "version": "1.2.7",
+  "publisher": "vedatardil",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:espFlasher.flashFirmware",
+    "onCommand:espFlasher.openPanel"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "espFlasher.flashFirmware",
+        "title": "ESP Flasher: Firmware Yükle"
+      },
+      {
+        "command": "espFlasher.openPanel",
+        "title": "ESP Flasher: Panel Aç"
+      }
+    ],
+    "configuration": {
+      "title": "ESP Flasher",
+      "properties": {
+        "espFlasher.pythonPath": {
+          "type": "string",
+          "default": "python3",
+          "description": "Python yolu (esptool için)"
+        },
+        "espFlasher.defaultBaudRate": {
+          "type": "number",
+          "default": 460800,
+          "description": "Varsayılan baud rate"
+        },
+        "espFlasher.defaultChip": {
+          "type": "string",
+          "default": "esp32",
+          "enum": [
+            "esp32",
+            "esp32s2",
+            "esp32s3",
+            "esp32c2",
+            "esp32c3",
+            "esp32c6",
+            "esp32h2",
+            "esp8266"
+          ],
+          "description": "Varsayılan chip tipi"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/vscode": "^1.85.0",
+    "eslint": "^8.55.0",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {}
+}
